@@ -123,16 +123,18 @@ export default function HomePage() {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-serif font-semibold text-foreground mb-1">
-            Mi Biblioteca
+            Biblioteca Compartida
           </h1>
           <p className="text-muted-foreground">
-            {filteredBooks.length} libros en tu colección
+            {filteredBooks.length} libros en la colección
           </p>
         </div>
-        <Button onClick={() => setLocation("/books/new")} className="gap-1.5">
-          <Plus className="h-4 w-4" />
-          Añadir libro
-        </Button>
+        {user?.role !== "usuario" ? (
+          <Button onClick={() => setLocation("/books/new")} className="gap-1.5">
+            <Plus className="h-4 w-4" />
+            Añadir libro
+          </Button>
+        ) : null}
       </div>
 
       <div className="flex flex-wrap gap-3 mb-8">
@@ -226,7 +228,7 @@ export default function HomePage() {
           <p className="text-muted-foreground text-sm max-w-xs">
             {search || genre || favOnly
               ? "Intenta ajustar los filtros de búsqueda."
-              : "Empieza añadiendo tu primer libro a la colección."}
+              : "Empieza añadiendo el primer libro a la colección."}
           </p>
         </div>
       )}

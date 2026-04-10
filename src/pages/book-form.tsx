@@ -102,6 +102,15 @@ export default function BookFormPage({ mode }: Props) {
         const existingBook = await Books.get(params.id, currentUser.id);
 
         if (!ignore && existingBook) {
+          if (existingBook.userId !== currentUser.id) {
+            toast({
+              title: "No tienes permisos para editar este libro",
+              variant: "destructive",
+            });
+            setLocation(`/books/${params.id}`);
+            return;
+          }
+
           form.reset({
             title: existingBook.title,
             author: existingBook.author,
