@@ -63,10 +63,23 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 function getErrorMessage(error: unknown): string {
+  const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
   const code =
     typeof error === "object" && error && "code" in error
       ? String(error.code)
       : "";
+
+  if (code === "auth/forbidden-password-reset") {
+    return "Solo el superadmin puede restablecer contraseñas de otros usuarios.";
+  }
+
+  if (code === "auth/forbidden-target-role") {
+    return "Solo se permite restablecer contraseña de usuarios y admins.";
+  }
+
+  if (code === "auth/user-not-found") {
+    return "El usuario seleccionado no existe.";
+  }
 
   if (code === "permission-denied" || code === "firestore/permission-denied") {
     return "No tienes permisos para gestionar usuarios con las reglas actuales de Firestore.";
@@ -78,6 +91,36 @@ function getErrorMessage(error: unknown): string {
 
   if (code === "firestore/timeout") {
     return "Firebase tardó demasiado en responder.";
+  }
+
+  if (code === "auth/email-already-in-use") {
+    return projectId
+      ? `Ese correo ya está registrado en Firebase Authentication del proyecto ${projectId}.`
+      : "Ese correo ya está registrado en Firebase Authentication.";
+  }
+
+  if (code === "auth/invalid-email") {
+    return "El correo no es válido.";
+  }
+
+  if (code === "auth/weak-password") {
+    return "La contraseña es demasiado débil (mínimo 6 caracteres).";
+  }
+
+  if (code === "auth/operation-not-allowed") {
+    return "Email/Password no está habilitado en Firebase Authentication.";
+  }
+
+  if (code === "auth/configuration-not-found") {
+    return "Firebase Authentication no está configurado en este proyecto.";
+  }
+
+  if (code === "auth/network-request-failed") {
+    return "Error de red al crear el usuario.";
+  }
+
+  if (code) {
+    return `Error de Firebase: ${code}`;
   }
 
   return "Inténtalo de nuevo en unos segundos.";
@@ -94,6 +137,7 @@ export default function UsersPage() {
   const [deleteTarget, setDeleteTarget] = useState<DirectoryUser | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showEditPassword, setShowEditPassword] = useState(false);
   const currentRole = user?.role ?? "usuario";
   const isSuperAdmin = currentRole === "superadmin";
   const isAdmin = currentRole === "admin";
@@ -149,7 +193,7 @@ export default function UsersPage() {
 
   function openEditModal(target: DirectoryUser) {
     setEditingUserId(target.id);
-    setShowPassword(false);
+    setShowEditPassword(false);
     form.reset({
       name: target.name,
       email: target.email,
@@ -170,6 +214,15 @@ export default function UsersPage() {
 
     try {
       if (editingUserId) {
+        const password = (values.password ?? "").trim();
+        if (password.length > 0 && password.length < 6) {
+          form.setError("password", {
+            type: "manual",
+            message: "Mínimo 6 caracteres",
+          });
+          return;
+        }
+
         const payload = {
           name: values.name,
           email: values.email,
@@ -188,7 +241,26 @@ export default function UsersPage() {
             .sort((a, b) => a.name.localeCompare(b.name, "es")),
         );
 
-        toast({ title: "Usuario actualizado" });
+        if (
+          isSuperAdmin &&
+          editingUser &&
+          editingUser.role !== "superadmin" &&
+          password.length >= 6 &&
+          user
+        ) {
+          await Users.resetPassword(editingUserId, {
+            id: user.id,
+            role: user.role,
+          });
+          toast({
+            title: "Usuario actualizado",
+            description:
+              "Se envio correo para actualizar la contraseña del usuario.",
+          });
+        } else {
+          toast({ title: "Usuario actualizado" });
+        }
+
         setIsEditModalOpen(false);
         setEditingUserId(null);
         return;
@@ -520,6 +592,52 @@ export default function UsersPage() {
                   </FormItem>
                 )}
               />
+
+              {isSuperAdmin && editingUser?.role !== "superadmin" ? (
+                <FormField
+                  control={form.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Contraseña</FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            type={showEditPassword ? "text" : "password"}
+                            placeholder="Nueva contraseña (opcional)"
+                            className="pl-9 pr-10"
+                            {...field}
+                          />
+                          <button
+                            type="button"
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                            onClick={() =>
+                              setShowEditPassword((current) => !current)
+                            }
+                            aria-label={
+                              showEditPassword
+                                ? "Ocultar contrasena"
+                                : "Mostrar contrasena"
+                            }
+                          >
+                            {showEditPassword ? (
+                              <EyeOff className="h-4 w-4" />
+                            ) : (
+                              <Eye className="h-4 w-4" />
+                            )}
+                          </button>
+                        </div>
+                      </FormControl>
+                      <p className="text-xs text-muted-foreground">
+                        Si completas este campo, se enviara un correo al usuario
+                        para actualizar su contraseña.
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ) : null}
 
               <DialogFooter>
                 <Button

@@ -1,10 +1,14 @@
 import {
+    EmailAuthProvider,
     createUserWithEmailAndPassword,
     deleteUser,
     getAuth,
     onAuthStateChanged,
+    reauthenticateWithCredential,
+    sendPasswordResetEmail,
     signInWithEmailAndPassword,
     signOut,
+    updatePassword,
     updateProfile,
     type User as FirebaseUser,
 } from "firebase/auth";
@@ -278,6 +282,73 @@ export const Auth = {
 
     async clearSession(): Promise<void> {
         await signOut(auth);
+    },
+
+    async changeOwnPassword(currentPassword: string, nextPassword: string): Promise<void> {
+        if (!auth.currentUser || !auth.currentUser.email) {
+            const error = new Error("No hay sesión activa");
+            (error as Error & { code?: string }).code = "auth/not-authenticated";
+            throw error;
+        }
+
+        const trimmedCurrentPassword = currentPassword.trim();
+        const trimmedNextPassword = nextPassword.trim();
+
+        if (trimmedCurrentPassword.length === 0) {
+            const error = new Error("La contraseña actual es obligatoria");
+            (error as Error & { code?: string }).code = "auth/missing-current-password";
+            throw error;
+        }
+
+        if (trimmedNextPassword.length < 6) {
+            const error = new Error("La nueva contraseña debe tener al menos 6 caracteres");
+            (error as Error & { code?: string }).code = "auth/weak-password";
+            throw error;
+        }
+
+        const credential = EmailAuthProvider.credential(auth.currentUser.email, trimmedCurrentPassword);
+        await reauthenticateWithCredential(auth.currentUser, credential);
+        await updatePassword(auth.currentUser, trimmedNextPassword);
+    },
+
+    async requestPasswordRecovery(email: string): Promise<{ ok: true } | { error: string }> {
+        const normalizedEmail = email.trim();
+
+        if (!normalizedEmail) {
+            return { error: "Ingresa un correo válido" };
+        }
+
+        try {
+            await sendPasswordResetEmail(auth, normalizedEmail, {
+                url: `${window.location.origin}/login`,
+                handleCodeInApp: false,
+            });
+            return { ok: true };
+        } catch (error) {
+            const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
+
+            if (code === "auth/user-not-found") {
+                return { error: "No existe una cuenta con ese correo" };
+            }
+
+            if (code === "auth/invalid-email") {
+                return { error: "Correo inválido" };
+            }
+
+            if (code === "auth/missing-continue-uri" || code === "auth/invalid-continue-uri" || code === "auth/unauthorized-continue-uri") {
+                return { error: "Configura el dominio autorizado en Firebase Authentication" };
+            }
+
+            if (code === "auth/too-many-requests") {
+                return { error: "Demasiados intentos. Intenta más tarde" };
+            }
+
+            if (code === "auth/network-request-failed") {
+                return { error: "Error de red. Revisa tu conexión" };
+            }
+
+            return { error: "No se pudo enviar el correo de recuperación" };
+        }
     },
 };
 
@@ -692,5 +763,39 @@ export const Users = {
 
         await withTimeout(deleteDoc(userRef), FIRESTORE_WRITE_TIMEOUT_MS);
         return true;
+    },
+
+    async resetPassword(
+        targetUserId: string,
+        actor: Pick<StoredUser, "id" | "role">,
+    ): Promise<void> {
+        ensureOnlineForWrite();
+
+        const canReset = actor.role === "superadmin";
+        if (!canReset) {
+            const error = new Error("No autorizado para gestionar esta contraseña");
+            (error as Error & { code?: string }).code = "auth/forbidden-password-reset";
+            throw error;
+        }
+
+        const targetRef = doc(db, "users", targetUserId);
+        const targetSnapshot = await withTimeout(getDoc(targetRef));
+        if (!targetSnapshot.exists()) {
+            const error = new Error("Usuario no encontrado");
+            (error as Error & { code?: string }).code = "auth/user-not-found";
+            throw error;
+        }
+
+        const target = normalizeDirectoryUser(targetSnapshot.id, targetSnapshot.data());
+        if (target.role === "superadmin") {
+            const error = new Error("No se permite restablecer contraseña de superadmin");
+            (error as Error & { code?: string }).code = "auth/forbidden-target-role";
+            throw error;
+        }
+
+        await withTimeout(
+            sendPasswordResetEmail(auth, target.email),
+            FIRESTORE_WRITE_TIMEOUT_MS,
+        );
     },
 };

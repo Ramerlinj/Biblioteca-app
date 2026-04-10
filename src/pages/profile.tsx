@@ -1,11 +1,23 @@
 import { useEffect, useState } from "react";
-import { User, Mail, Calendar, BookOpen } from "lucide-react";
-import { Books } from "@/lib/store";
+import {
+  Eye,
+  EyeOff,
+  User,
+  Mail,
+  Calendar,
+  BookOpen,
+  Lock,
+} from "lucide-react";
+import { Auth, Books } from "@/lib/store";
 import { useAuth } from "@/contexts/AuthContext";
 import { ContentLoading } from "@/components/LoadingState";
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export default function ProfilePage() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [stats, setStats] = useState({
     totalBooks: 0,
     totalFavorites: 0,
@@ -13,6 +25,13 @@ export default function ProfilePage() {
     booksThisMonth: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -59,6 +78,57 @@ export default function ProfilePage() {
 
   if (isLoading) {
     return <ContentLoading label="Cargando perfil" />;
+  }
+
+  async function handleChangePassword(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+
+    if (newPassword.trim().length < 6) {
+      toast({
+        title: "Nueva contraseña inválida",
+        description: "Debe tener al menos 6 caracteres.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast({
+        title: "Las contraseñas no coinciden",
+        description: "Revisa la confirmación de la nueva contraseña.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setIsChangingPassword(true);
+      await Auth.changeOwnPassword(currentPassword, newPassword);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      toast({ title: "Contraseña actualizada" });
+    } catch (error) {
+      const code =
+        typeof error === "object" && error && "code" in error
+          ? String(error.code)
+          : "";
+
+      const description =
+        code === "auth/invalid-credential" || code === "auth/wrong-password"
+          ? "La contraseña actual no es correcta."
+          : code === "auth/weak-password"
+            ? "La nueva contraseña es demasiado débil."
+            : "No se pudo cambiar la contraseña. Intenta nuevamente.";
+
+      toast({
+        title: "Error al cambiar contraseña",
+        description,
+        variant: "destructive",
+      });
+    } finally {
+      setIsChangingPassword(false);
+    }
   }
 
   return (
@@ -118,6 +188,104 @@ export default function ProfilePage() {
             </div>
           ))}
         </div>
+      </div>
+
+      <div className="bg-card border border-card-border rounded-2xl p-6 shadow-sm mt-6">
+        <h3 className="font-semibold text-foreground mb-4">Seguridad</h3>
+        <p className="text-sm text-muted-foreground mb-4">
+          Puedes cambiar únicamente la contraseña de tu propia cuenta.
+        </p>
+
+        <form onSubmit={handleChangePassword} className="space-y-3">
+          <div className="relative">
+            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              type={showCurrentPassword ? "text" : "password"}
+              value={currentPassword}
+              onChange={(event) => setCurrentPassword(event.target.value)}
+              placeholder="Contraseña actual"
+              className="pl-9 pr-10"
+              autoComplete="current-password"
+              required
+            />
+            <button
+              type="button"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              onClick={() => setShowCurrentPassword((value) => !value)}
+              aria-label={
+                showCurrentPassword
+                  ? "Ocultar contrasena"
+                  : "Mostrar contrasena"
+              }
+            >
+              {showCurrentPassword ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
+            </button>
+          </div>
+
+          <div className="relative">
+            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              type={showNewPassword ? "text" : "password"}
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+              placeholder="Nueva contraseña"
+              className="pl-9 pr-10"
+              autoComplete="new-password"
+              required
+            />
+            <button
+              type="button"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              onClick={() => setShowNewPassword((value) => !value)}
+              aria-label={
+                showNewPassword ? "Ocultar contrasena" : "Mostrar contrasena"
+              }
+            >
+              {showNewPassword ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
+            </button>
+          </div>
+
+          <div className="relative">
+            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              type={showConfirmPassword ? "text" : "password"}
+              value={confirmPassword}
+              onChange={(event) => setConfirmPassword(event.target.value)}
+              placeholder="Confirmar nueva contraseña"
+              className="pl-9 pr-10"
+              autoComplete="new-password"
+              required
+            />
+            <button
+              type="button"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              onClick={() => setShowConfirmPassword((value) => !value)}
+              aria-label={
+                showConfirmPassword
+                  ? "Ocultar contrasena"
+                  : "Mostrar contrasena"
+              }
+            >
+              {showConfirmPassword ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
+            </button>
+          </div>
+
+          <Button type="submit" disabled={isChangingPassword}>
+            {isChangingPassword ? "Actualizando..." : "Cambiar contraseña"}
+          </Button>
+        </form>
       </div>
     </div>
   );

@@ -2,7 +2,7 @@ import { useForm } from "react-hook-form";
 import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Mail, Lock, Eye, EyeOff } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, CircleAlert } from "lucide-react";
 import { Auth } from "@/lib/store";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocation } from "wouter";
@@ -18,6 +18,14 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const schema = z.object({
   email: z.string().email("Email inválido"),
@@ -31,6 +39,9 @@ export default function LoginPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
+  const [isRecoveryOpen, setIsRecoveryOpen] = useState(false);
+  const [recoveryEmail, setRecoveryEmail] = useState("");
+  const [isSendingRecovery, setIsSendingRecovery] = useState(false);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -44,6 +55,30 @@ export default function LoginPage() {
     } else {
       setAuth(result);
       setLocation("/");
+    }
+  }
+
+  async function onSendRecovery() {
+    setIsSendingRecovery(true);
+    try {
+      const result = await Auth.requestPasswordRecovery(recoveryEmail);
+      if ("error" in result) {
+        toast({
+          title: "No se pudo enviar el correo",
+          description: result.error,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Correo enviado",
+        description:
+          "Revisa bandeja principal, Spam y Promociones para restablecer la contraseña.",
+      });
+      setIsRecoveryOpen(false);
+    } finally {
+      setIsSendingRecovery(false);
     }
   }
 
@@ -165,6 +200,19 @@ export default function LoginPage() {
             </form>
           </Form>
 
+          <div className="mt-3 text-right">
+            <button
+              type="button"
+              className="text-sm text-primary font-medium hover:underline"
+              onClick={() => {
+                setRecoveryEmail(form.getValues("email") || "");
+                setIsRecoveryOpen(true);
+              }}
+            >
+              ¿Olvidaste tu contraseña?
+            </button>
+          </div>
+
           <p className="text-center text-sm text-muted-foreground mt-6">
             ¿No tienes cuenta?{" "}
             <Link
@@ -175,6 +223,59 @@ export default function LoginPage() {
               Regístrate
             </Link>
           </p>
+
+          <Dialog open={isRecoveryOpen} onOpenChange={setIsRecoveryOpen}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Recuperar contraseña</DialogTitle>
+                <DialogDescription>
+                  Ingresa tu correo y te enviaremos un enlace para recuperar
+                  acceso.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-2">
+                <label
+                  className="text-sm font-medium text-foreground"
+                  htmlFor="recovery-email"
+                >
+                  Email
+                </label>
+                <Input
+                  id="recovery-email"
+                  type="email"
+                  placeholder="tu@email.com"
+                  value={recoveryEmail}
+                  onChange={(event) => setRecoveryEmail(event.target.value)}
+                />
+              </div>
+
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200 flex items-start gap-2">
+                <CircleAlert className="h-4 w-4 mt-0.5 shrink-0" />
+                <p>
+                  Si no lo ves en menos de 2 minutos, revisa Spam y Promociones.
+                </p>
+              </div>
+
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsRecoveryOpen(false)}
+                  disabled={isSendingRecovery}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => void onSendRecovery()}
+                  disabled={isSendingRecovery}
+                >
+                  {isSendingRecovery ? "Enviando..." : "Enviar enlace"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
     </div>

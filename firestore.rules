@@ -1,0 +1,120 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userPath(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+
+    function roleOf(uid) {
+      return exists(userPath(uid)) ? get(userPath(uid)).data.role : "usuario";
+    }
+
+    function myRole() {
+      return signedIn() ? roleOf(request.auth.uid) : "usuario";
+    }
+
+    function isSelf(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function isSuperAdmin() {
+      return signedIn() && myRole() == "superadmin";
+    }
+
+    function isAdmin() {
+      return signedIn() && myRole() == "admin";
+    }
+
+    function isAdminOrSuperAdmin() {
+      return isAdmin() || isSuperAdmin();
+    }
+
+    function validRole(role) {
+      return role in ["usuario", "admin", "superadmin"];
+    }
+
+    function validUserShape(data) {
+      return data.name is string &&
+        data.email is string &&
+        data.createdAt is string &&
+        data.role is string &&
+        validRole(data.role);
+    }
+
+    function validBookShape(data) {
+      return data.userId is string &&
+        data.title is string &&
+        data.author is string &&
+        data.genre is string &&
+        data.isFavorite is bool &&
+        data.createdAt is string &&
+        (data.editorial == null || data.editorial is string) &&
+        (data.year == null || data.year is int) &&
+        (data.isbn == null || data.isbn is string) &&
+        (data.description == null || data.description is string) &&
+        (data.coverUrl == null || data.coverUrl is string);
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn() && (isAdminOrSuperAdmin() || isSelf(userId));
+
+      allow create: if signedIn()
+        && validUserShape(request.resource.data)
+        && request.resource.data.createdAt is string
+        && (
+          (
+            isSelf(userId) &&
+            request.resource.data.role == "usuario"
+          ) ||
+          isSuperAdmin() ||
+          (isAdmin() && request.resource.data.role == "usuario")
+        );
+
+      allow update: if signedIn()
+        && validUserShape(request.resource.data)
+        && request.resource.data.createdAt == resource.data.createdAt
+        && (
+          // Superadmin: puede editar cualquier usuario y rol.
+          isSuperAdmin() ||
+          // Admin: no puede editar superadmin ni cambiar roles.
+          (
+            isAdmin() &&
+            resource.data.role != "superadmin" &&
+            request.resource.data.role == resource.data.role
+          ) ||
+          // Cualquier usuario: solo su propio perfil y sin cambiar rol.
+          (
+            isSelf(userId) &&
+            request.resource.data.role == resource.data.role
+          )
+        );
+
+      allow delete: if signedIn()
+        && (
+          isSuperAdmin() ||
+          (isAdmin() && resource.data.role == "usuario")
+        );
+    }
+
+    match /books/{bookId} {
+      allow read: if signedIn();
+
+      allow create: if signedIn()
+        && isAdminOrSuperAdmin()
+        && validBookShape(request.resource.data);
+
+      allow update: if signedIn()
+        && isAdminOrSuperAdmin()
+        && validBookShape(request.resource.data)
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.createdAt == resource.data.createdAt;
+
+      allow delete: if signedIn() && isAdminOrSuperAdmin();
+    }
+  }
+}
