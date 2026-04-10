@@ -13,7 +13,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { cn } from "@/lib/utils";
 import type { UserRole } from "@/lib/store";
-import Analityts from "@/components/Analityts";
 
 const navItems: Array<{
   href: string;

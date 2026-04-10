@@ -16,6 +16,8 @@ import UsersPage from "@/pages/users";
 import NotFound from "@/pages/not-found";
 import { FullPageLoading } from "@/components/LoadingState";
 import type { UserRole } from "@/lib/store";
+import { Analytics } from "@vercel/analytics/remix"
+
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -125,6 +127,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
+          <Analytics />
         <ThemeProvider>
           <AuthProvider>
             <WouterRouter base="/">
