@@ -21,10 +21,6 @@ export default defineConfig({
             return;
           }
 
-          if (id.includes("node_modules/react") || id.includes("node_modules/scheduler")) {
-            return "react-vendor";
-          }
-
           if (id.includes("node_modules/firebase")) {
             return "firebase-vendor";
           }
@@ -56,8 +52,6 @@ export default defineConfig({
           if (id.includes("node_modules/wouter") || id.includes("node_modules/date-fns")) {
             return "router-date-vendor";
           }
-
-          return "vendor";
         },
       },
     },
