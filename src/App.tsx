@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 import { Layout } from "@/components/Layout";
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
+import ResetPasswordPage from "./pages/reset-password";
 import HomePage from "@/pages/home";
 import BookDetailPage from "@/pages/book-detail";
 import BookFormPage from "@/pages/book-form";
@@ -16,7 +17,7 @@ import UsersPage from "@/pages/users";
 import NotFound from "@/pages/not-found";
 import { FullPageLoading } from "@/components/LoadingState";
 import type { UserRole } from "@/lib/store";
-import { Analytics } from "@vercel/analytics/react"
+import { Analytics } from "@vercel/analytics/react";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -73,6 +74,9 @@ function Router() {
       <Route path="/register">
         <GuestRoute component={RegisterPage} />
       </Route>
+      <Route path="/reset-password">
+        <ResetPasswordPage />
+      </Route>
       <Route path="/">
         <ProtectedRoute
           component={HomePage as React.ComponentType<Record<string, unknown>>}
@@ -126,15 +130,15 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-      <ThemeProvider>
-        <AuthProvider>
-        <WouterRouter base="/">
-          <Router />
-        </WouterRouter>
-        <Toaster />
-        <Analytics />
-        </AuthProvider>
-      </ThemeProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <WouterRouter base="/">
+              <Router />
+            </WouterRouter>
+            <Toaster />
+            <Analytics />
+          </AuthProvider>
+        </ThemeProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );

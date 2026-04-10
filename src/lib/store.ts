@@ -313,6 +313,7 @@ export const Auth = {
 
     async requestPasswordRecovery(email: string): Promise<{ ok: true } | { error: string }> {
         const normalizedEmail = email.trim();
+        const resetUrl = "https://biblioteca-app-a4f27.web.app/reset-password";
 
         if (!normalizedEmail) {
             return { error: "Ingresa un correo válido" };
@@ -320,7 +321,7 @@ export const Auth = {
 
         try {
             await sendPasswordResetEmail(auth, normalizedEmail, {
-                url: `${window.location.origin}/login`,
+                url: resetUrl,
                 handleCodeInApp: false,
             });
             return { ok: true };
